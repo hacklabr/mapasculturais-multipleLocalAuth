@@ -526,7 +526,10 @@ class Provider extends \MapasCulturais\AuthProvider{
         $app = App::i();
         $reason = '';
         $response = $this->_getResponse();
-        $app->log->debug("=======================================\n". __METHOD__. print_r($response,true) . "\n=================");
+
+        if(@$app->config['app.log.auth']){
+            $app->log->debug("=======================================\n". __METHOD__. print_r($response,true) . "\n=================");
+        }
 
         $valid = false;
         // o usuário ainda não tentou se autenticar
