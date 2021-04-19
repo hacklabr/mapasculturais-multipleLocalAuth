@@ -25,10 +25,13 @@ class Plugin extends \MapasCulturais\Plugin {
         $app->hook('<<GET|POST|ALL>>(panel.<<*>>):before', function() use ($app) {
             $app->view->enqueueStyle('app', 'multipleLocal', 'css/multipleLocal.css');
         });
-        
     }
 
     public function register() {
+        $this->registerUserMetadata(Provider::$passMetaName, ['label' => i::__('Senha')]);
+        
+        $this->registerUserMetadata(Provider::$recoverTokenMetadata, ['label' => i::__('Token para recuperação de senha')]);
+        $this->registerUserMetadata(Provider::$recoverTokenTimeMetadata, ['label' => i::__('Timestamp do token para recuperação de senha')]);
         
     }
     

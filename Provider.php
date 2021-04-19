@@ -13,8 +13,11 @@ class Provider extends \MapasCulturais\AuthProvider{
     var $triedEmail = '';
     var $triedName = '';
     
-    protected $passMetaName = 'localAuthenticationPassword';
-    
+    public static $passMetaName = 'localAuthenticationPassword';
+
+    public static $recoverTokenMetadata = 'recover_token';
+    public static $recoverTokenTimeMetadata = 'recover_token_time';
+
     function dump($x) {
         \Doctrine\Common\Util\Debug::dump($x);
     }
@@ -224,13 +227,13 @@ class Provider extends \MapasCulturais\AuthProvider{
             $curr_pass =filter_var($app->request->post('current_pass'), FILTER_SANITIZE_STRING);
             $new_pass = filter_var($app->request->post('new_pass'), FILTER_SANITIZE_STRING);
             $confirm_new_pass = filter_var($app->request->post('confirm_new_pass'), FILTER_SANITIZE_STRING);
-            $meta = $this->passMetaName;
-            $curr_saved_pass = $user->getMetadata($meta);
+            
+            $curr_saved_pass = $user->{Provider::$passMetaName};
             
             if (password_verify($curr_pass, $curr_saved_pass)) {
                 
                 if ($this->verifyPassowrds($new_pass, $confirm_new_pass)) {
-                    $user->setMetadata($meta, $app->auth->hashPassword($new_pass));
+                    $user->{Provider::$passMetaName} = $app->auth->hashPassword($new_pass);
                     $feedback_msg = $emailChanged ? i::__('Email e senha alterados com sucecsso', 'multipleLocal') : i::__('Senha alterada com sucesso', 'multipleLocal');
                     $this->setFeedback($feedback_msg, true);
                 } else {
@@ -277,19 +280,20 @@ class Provider extends \MapasCulturais\AuthProvider{
             return false;
         }
         
-        $meta = 'recover_token_' . $token;
-        $savedToken = $user->getMetadata($meta);
+        $savedToken = $user->getMetadata('recover_token');
         
-        if (!$savedToken) {
+        if (!$savedToken || $savedToken != $token) {
             $this->feedback_success = false;
             $this->triedEmail = $email;
             $this->feedback_msg = i::__('Email ou token inválidos', 'multipleLocal');
             return false;
         }
+
+        $recover_token_time = $user->getMetadata('recover_token_time');
         
         // check if token is still valid
         $now = time();
-        $diff = $now - intval($savedToken);
+        $diff = $now - intval($recover_token_time);
         
         if ($diff > 60 * 60 * 24 * 30) {
             $this->feedback_success = false;
@@ -301,12 +305,12 @@ class Provider extends \MapasCulturais\AuthProvider{
         if (!$this->verifyPassowrds($pass, $pass_v))
             return false;
         
-        $user->setMetadata($this->passMetaName, $this->hashPassword($pass));
-        
         $app->disableAccessControl();
+        $user->setMetadata(self::$passMetaName, $this->hashPassword($pass));
+        
         $user->save(true); 
         $app->enableAccessControl();
-        
+
         $this->feedback_success = true;
         $this->triedEmail = $email;
         $this->feedback_msg = i::__('Senha alterada com sucesso! Você pode fazer login agora', 'multipleLocal');
@@ -332,11 +336,13 @@ class Provider extends \MapasCulturais\AuthProvider{
         $string = $this->hashPassword($source);
         $token = substr($string, $cut, 20);
         
+        $app->disableAccessControl();
         // save hash and created time
-        $user->setMetadata('recover_token_' . $token, time());
+        $user->setMetadata('recover_token', $token);
+        $user->setMetadata('recover_token_time', time());
         $user->saveMetadata();
         $app->em->flush();
-        
+        $app->enableAccessControl();
         // build recover URL
         $url = $app->createUrl('auth', 'recover-resetform') . '?t=' . $token;
         
@@ -411,8 +417,7 @@ class Provider extends \MapasCulturais\AuthProvider{
             return false;
         }
         
-        $meta = $this->passMetaName;
-        $savedPass = $user->getMetadata($meta);
+        $savedPass = $user->{self::$passMetaName};
 
         if (password_verify($pass, $savedPass)) {
             $this->authenticateUser($userToLogin);
@@ -445,7 +450,7 @@ class Provider extends \MapasCulturais\AuthProvider{
             
             $user = $this->createUser($response);
             
-            $user->setMetadata($this->passMetaName, $app->auth->hashPassword( $pass ));
+            $user->{self::$passMetaName} = $app->auth->hashPassword( $pass );
             
             // save
             $app->disableAccessControl();
